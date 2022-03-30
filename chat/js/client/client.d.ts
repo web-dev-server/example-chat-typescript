@@ -1,0 +1,41 @@
+declare class Chat {
+    static readonly ADDRESS: string;
+    Static: typeof Chat;
+    private _development;
+    private _id;
+    private _user;
+    private _socket;
+    private _loginForm;
+    private _loginUserElm;
+    private _loginPassElm;
+    private _logoutBtn;
+    private _chatRoom;
+    private _currentUser;
+    private _onlineUsers;
+    private _messages;
+    private _messageForm;
+    private _recepientsElms;
+    private _messageElm;
+    private _recepients;
+    private _audioElm;
+    private _typingUsersCont;
+    private _typingUsers;
+    constructor();
+    private _initElements;
+    private _initEvents;
+    private _developmentAutoLogin;
+    private _loginSubmitHandler;
+    private _initChatRoom;
+    private _initChatWebSocketComunication;
+    private _messageFormSubmitHandler;
+    private _messageFormTypingHandler;
+    private _getRecepient;
+    private _anyUserLogInHandler;
+    private _anyUserLogOutHandler;
+    private _addMessage;
+    private _updateOnlineUsersHandler;
+    private _typingUsersHandler;
+    private _updateRecepients;
+    private _scrollToBottom;
+}
+//# sourceMappingURL=client.d.ts.map
