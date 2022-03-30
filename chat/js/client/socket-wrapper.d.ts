@@ -1,7 +1,3 @@
-declare interface WebSocketMsg {
-    eventName: string;
-    data: any;
-}
 declare class WebSocketWrapper {
     static readonly RECONNECT_TIMEOUT: number;
     private static _instances;
@@ -19,10 +15,10 @@ declare class WebSocketWrapper {
     static GetInstance(url: string, ...autoReconnectEvents: string[]): WebSocketWrapper;
     private constructor();
     SetAutoReconnectEvents(...autoReconnectEvents: string[]): WebSocketWrapper;
-    Send(eventName: string, data: any): WebSocketWrapper;
+    Send(eventName: string, data: any, live?: boolean): WebSocketWrapper;
     Close(code?: number, reason?: string, doNotReconnect?: boolean | null): WebSocketWrapper;
-    Bind(eventName: string, callback: (data: any) => void): WebSocketWrapper;
-    Unbind(eventName: string, callback: (data: any) => void): WebSocketWrapper;
+    Bind(eventName: string, callback: WsCallback): WebSocketWrapper;
+    Unbind(eventName: string, callback: WsCallback): WebSocketWrapper;
     private _connect;
     private _onOpenHandler;
     private _onErrorHandler;

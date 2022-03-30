@@ -58,8 +58,8 @@ class Chat {
         this._loginUserElm.value = chrome
             ? 'james.bond'
             : (firefox
-                ? 'moneypenny'
-                : 'mr.white');
+                ? 'money.penny'
+                : 'mr.smith');
         this._loginPassElm.value = '1234';
         if (document.createEvent) {
             var eventObject = document.createEvent('Event');
@@ -88,7 +88,7 @@ class Chat {
                 },
                 success: (data, statusCode, xhr) => {
                     if (data.success) {
-                        this._initChatRoom(user, data.id);
+                        this._initChatRoom(user, Number(data.id));
                     }
                     else {
                         alert("Wrong login or password.");
@@ -130,9 +130,10 @@ class Chat {
         });
         this._socket.Bind('login', this._anyUserLogInHandler.bind(this));
         this._socket.Bind('logout', this._anyUserLogOutHandler.bind(this));
-        this._socket.Bind('message', (data) => {
-            this._addMessage('content ' + (data.id == this._id ? 'current' : 'other'), data.content, data.user);
-            this._audioElm.play();
+        this._socket.Bind('message', (data, live = true) => {
+            this._addMessage('content ' + (data.id == this._id ? 'current' : 'other'), data.content, data.user, data.recepient);
+            if (live)
+                this._audioElm.play();
         });
         this._socket.Bind('typing', this._typingUsersHandler.bind(this));
     }
@@ -168,22 +169,32 @@ class Chat {
         }
         return recepient;
     }
-    _anyUserLogInHandler(data) {
-        this._updateOnlineUsersHandler(data);
+    _anyUserLogInHandler(data, live = true) {
+        if (live)
+            this._updateOnlineUsersHandler(data);
         this._addMessage('notify', data.user + ' has joined chat');
-        this._updateRecepients(data.onlineUsers);
+        if (live)
+            this._updateRecepients(data.onlineUsers);
     }
-    _anyUserLogOutHandler(data) {
-        this._updateOnlineUsersHandler(data);
+    _anyUserLogOutHandler(data, live = true) {
+        if (live)
+            this._updateOnlineUsersHandler(data);
         this._addMessage('notify', data.user + ' has leaved chat');
-        this._updateRecepients(data.onlineUsers);
+        if (live)
+            this._updateRecepients(data.onlineUsers);
     }
-    _addMessage(msgClass, msgContent, msgAutor = null) {
+    _addMessage(msgClass, msgContent, msgAutor = null, msgRecepient = null) {
         var msg = document.createElement('div');
         msg.className = 'message ' + msgClass;
         msg.innerHTML = '<div>' + msgContent + '</div>';
-        if (msgAutor)
-            msg.innerHTML += '<span>' + msgAutor + '</span>';
+        if (msgAutor) {
+            if (msgRecepient != null && msgRecepient != '') {
+                msg.innerHTML += '<span>' + msgAutor + ' to ' + msgRecepient + '</span>';
+            }
+            else {
+                msg.innerHTML += '<span>' + msgAutor + ' to all</span>';
+            }
+        }
         this._messages.appendChild(msg);
         this._scrollToBottom();
     }
@@ -210,14 +221,15 @@ class Chat {
         }
     }
     _updateRecepients(onlineUsers) {
-        var html = '', idInt;
+        var html = '', idInt, userName;
         for (var idStr in onlineUsers) {
             idInt = parseInt(idStr, 10);
             if (idInt === this._id)
                 continue;
+            userName = onlineUsers[idStr];
             html += '<div>'
-                + '<input id="rcp-' + idStr + '" type="radio" name="rcp" value="' + idStr + '" />'
-                + '<label for="rcp-' + idStr + '">' + onlineUsers[idStr] + '</label>'
+                + '<input id="rcp-' + idStr + '" type="radio" name="rcp" value="' + userName + '" />'
+                + '<label for="rcp-' + idStr + '">' + userName + '</label>'
                 + '</div>';
         }
         this._recepients.innerHTML = html;

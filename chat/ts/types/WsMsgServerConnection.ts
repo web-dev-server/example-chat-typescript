@@ -1,3 +1,3 @@
-declare interface WsMsgServerConnection {
+declare interface WsMsgServerConnection extends WsMsgData {
     message: string;
 }

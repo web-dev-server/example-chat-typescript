@@ -1,9 +1,7 @@
 declare interface WsMsgServerOnlineUsers {
     [userId: number]: string;
 }
-declare interface WsMsgServerLoginLogout {
+declare interface WsMsgServerLoginLogout extends WsMsgData {
     onlineUsers: WsMsgServerOnlineUsers;
     onlineUsersCount: number;
-    id: number;
-    user: string;
 }

@@ -1,4 +1,2 @@
-declare interface WsMsgClientLogin {
-    id: number;
-    user: string;
+declare interface WsMsgClientLogin extends WsMsgData {
 }

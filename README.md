@@ -1,6 +1,6 @@
 # Example - Chat - TypeScript
 
-[![Latest Stable Version](https://img.shields.io/badge/Stable-v3.0.0-brightgreen.svg?style=plastic)](https://github.com/web-dev-server/example-chat-typescript/releases)
+[![Latest Stable Version](https://img.shields.io/badge/Stable-v3.1.0-brightgreen.svg?style=plastic)](https://github.com/web-dev-server/example-chat-typescript/releases)
 [![License](https://img.shields.io/badge/Licence-BSD-brightgreen.svg?style=plastic)](https://github.com/web-dev-server/example-chat-typescript/blob/master/LICENSE.md)
 
 Chat example with session authentication. Client scripts written in TypeScript, no framework needed.

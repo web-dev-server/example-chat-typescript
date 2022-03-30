@@ -1,8 +1,3 @@
-
-declare interface WebSocketMsg {
-	eventName: string;
-	data: any;
-}
 class WebSocketWrapper {
 	public static readonly RECONNECT_TIMEOUT: number = 1000; // 1s
 	private static _instances: Map<string, WebSocketWrapper> = new Map<string, WebSocketWrapper>();
@@ -11,7 +6,7 @@ class WebSocketWrapper {
 	private _socket: WebSocket;
 	private _opened: boolean = false;
 	private _sendQueue: string[] = [];
-	private _callbacks: Map<string, Function[]> = new Map<string, Function[]>();
+	private _callbacks: Map<string, WsCallback[]> = new Map<string, WsCallback[]>();
 	private _autoReconnectEvents: string = '';
 	/**
 	 * Get websocket instance by unique url or create new.
@@ -36,10 +31,11 @@ class WebSocketWrapper {
 		this._autoReconnectEvents = ',' + autoReconnectEvents.join(',') + ',';
 		return this;
 	}
-	public Send (eventName: string, data: any): WebSocketWrapper {
-		var str:string = JSON.stringify(<WebSocketMsg>{
+	public Send (eventName: string, data: any, live: boolean = true): WebSocketWrapper {
+		var str:string = JSON.stringify(<WsMsg>{
 			eventName: eventName, 
-			data: data 
+			data: data,
+			live: live
 		});
 		//console.log(this._opened, str);
 		if (this._opened) {
@@ -55,10 +51,10 @@ class WebSocketWrapper {
 		this._socket.close(code, reason);
 		return this;
 	}
-	public Bind (eventName: string, callback: (data: any) => void): WebSocketWrapper {
+	public Bind (eventName: string, callback: WsCallback): WebSocketWrapper {
 		if (!this._callbacks.has(eventName)) 
 			this._callbacks.set(eventName, []);
-		var callbacks: Function[] = this._callbacks.get(eventName) as Function[], 
+		var callbacks: WsCallback[] = this._callbacks.get(eventName) as WsCallback[], 
 			cbMatched: boolean = false;
 		for (var i = 0, l = callbacks.length; i < l; i++) {
 			if (callbacks[i] === callback) {
@@ -72,12 +68,12 @@ class WebSocketWrapper {
 		}
 		return this;
 	}
-	public Unbind (eventName: string, callback: (data: any) => void): WebSocketWrapper {
+	public Unbind (eventName: string, callback: WsCallback): WebSocketWrapper {
 		if (!this._callbacks.has(eventName)) 
 			this._callbacks.set(eventName, []);
-		var callbacks: Function[] = this._callbacks.get(eventName) as Function[], 
-			newCallbacks: Function[] = [], 
-			cb: Function;
+		var callbacks: WsCallback[] = this._callbacks.get(eventName) as WsCallback[], 
+			newCallbacks: WsCallback[] = [], 
+			cb: WsCallback;
 		for (var i = 0, l = callbacks.length; i < l; i++) {
 			cb = callbacks[i];
 			if (cb != callback)
@@ -106,7 +102,7 @@ class WebSocketWrapper {
 		try {
 			this._opened = true;
 			if (this._callbacks.has(eventName))
-				this._processCallbacks(this._callbacks.get(eventName) as Function[], [event]);
+				this._processCallbacks(this._callbacks.get(eventName) as WsCallback[], [event]);
 			if (this._sendQueue.length) {
 				for (var i:number = 0, l:number = this._sendQueue.length; i < l; i++)
 					this._socket.send(this._sendQueue[i]);
@@ -120,14 +116,14 @@ class WebSocketWrapper {
 		var eventName: string = 'error';
 		this._opened = false;
 		if (this._callbacks.has(eventName))
-			this._processCallbacks(this._callbacks.get(eventName) as Function[], [event]);
+			this._processCallbacks(this._callbacks.get(eventName) as WsCallback[], [event]);
 		this._autoReconnectIfNecessary(eventName);
 	}
 	private _onCloseHandler (event: CloseEvent): void {
 		var eventName: string = 'close';
 		this._opened = false;
 		if (this._callbacks.has(eventName))
-			this._processCallbacks(this._callbacks.get(eventName) as Function[], [event]);
+			this._processCallbacks(this._callbacks.get(eventName) as WsCallback[], [event]);
 		this._autoReconnectIfNecessary(eventName);
 	}
 	private _autoReconnectIfNecessary (eventName: string): void {
@@ -138,13 +134,15 @@ class WebSocketWrapper {
 			);
 	}
 	private _onMessageHandler (event: MessageEvent): void {
-		var result: WebSocketMsg | null = null,
+		var result: WsMsg | null = null,
 			eventName: string = '',
-			data: any = null;
+			data: any = null,
+			live: boolean = true;
 		try {
-			result = JSON.parse(event.data) as WebSocketMsg;
+			result = JSON.parse(event.data) as WsMsg;
 			eventName = result.eventName;
 			data = result.data;
+			live = result.live != null ? result.live : true;
 		} catch (e) {
 			console.error(e);
 		}
@@ -154,7 +152,7 @@ class WebSocketWrapper {
 				'`{"eventName":"myEvent","data":{"any":"data","as":"object"}}`'
 			);
 		} else if (this._callbacks.has(eventName)) {
-			this._processCallbacks(this._callbacks.get(eventName) as Function[], [data]);
+			this._processCallbacks(this._callbacks.get(eventName) as WsCallback[], [data, live]);
 		} else {
 			console.error(
 				"No callback found for socket event: `" 
@@ -164,7 +162,7 @@ class WebSocketWrapper {
 			);
 		}
 	}
-	private _processCallbacks (callbacks: Function[], args: any[]): void {
+	private _processCallbacks (callbacks: WsCallback[], args: any[]): void {
 		var cb: Function;
 		for (var i: number = 0, l: number = callbacks.length; i < l; i++) {
 			cb = callbacks[i];

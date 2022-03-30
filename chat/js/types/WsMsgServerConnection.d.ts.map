@@ -1,1 +1,1 @@
-{"version":3,"file":"WsMsgServerConnection.d.ts","sourceRoot":"","sources":["../../ts/types/WsMsgServerConnection.ts"],"names":[],"mappings":"AAAA,OAAO,WAAW,qBAAqB;IACnC,OAAO,EAAE,MAAM,CAAC;CACnB"}
+{"version":3,"file":"WsMsgServerConnection.d.ts","sourceRoot":"","sources":["../../ts/types/WsMsgServerConnection.ts"],"names":[],"mappings":"AAAA,OAAO,WAAW,qBAAsB,SAAQ,SAAS;IACrD,OAAO,EAAE,MAAM,CAAC;CACnB"}

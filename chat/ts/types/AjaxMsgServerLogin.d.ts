@@ -1,4 +1,5 @@
 declare interface AjaxMsgServerLogin {
     success: boolean;
-    id: number;
+    id: number | null;
+	message: string | null;
 }

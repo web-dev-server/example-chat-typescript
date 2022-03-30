@@ -1,6 +1,4 @@
-declare interface WsMsgClientMessage {
-    id: number;
-    user: string;
+declare interface WsMsgClientMessage extends WsMsgData {
     recepient: string;
     content: string;
 }

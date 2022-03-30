@@ -24,10 +24,11 @@ class WebSocketWrapper {
         this._autoReconnectEvents = ',' + autoReconnectEvents.join(',') + ',';
         return this;
     }
-    Send(eventName, data) {
+    Send(eventName, data, live = true) {
         var str = JSON.stringify({
             eventName: eventName,
-            data: data
+            data: data,
+            live: live
         });
         //console.log(this._opened, str);
         if (this._opened) {
@@ -124,11 +125,12 @@ class WebSocketWrapper {
             setTimeout(this._connect.bind(this), WebSocketWrapper.RECONNECT_TIMEOUT);
     }
     _onMessageHandler(event) {
-        var result = null, eventName = '', data = null;
+        var result = null, eventName = '', data = null, live = true;
         try {
             result = JSON.parse(event.data);
             eventName = result.eventName;
             data = result.data;
+            live = result.live != null ? result.live : true;
         }
         catch (e) {
             console.error(e);
@@ -138,7 +140,7 @@ class WebSocketWrapper {
                 '`{"eventName":"myEvent","data":{"any":"data","as":"object"}}`');
         }
         else if (this._callbacks.has(eventName)) {
-            this._processCallbacks(this._callbacks.get(eventName), [data]);
+            this._processCallbacks(this._callbacks.get(eventName), [data, live]);
         }
         else {
             console.error("No callback found for socket event: `"
