@@ -1,6 +1,7 @@
 declare class Chat {
-    static readonly ADDRESS: string;
-    Static: typeof Chat;
+    static readonly AJAX_LOGIN_ADDRESS: string;
+    static readonly WEB_SOCKETS_ADDRESS: string;
+    protected static: typeof Chat;
     private _development;
     private _id;
     private _user;
@@ -22,9 +23,12 @@ declare class Chat {
     private _typingUsers;
     constructor();
     private _initElements;
+    private _initElementRecepients;
     private _initEvents;
     private _developmentAutoLogin;
+    private _autoLogin;
     private _loginSubmitHandler;
+    private _getLoginUrl;
     private _initChatRoom;
     private _initChatWebSocketComunication;
     private _messageFormSubmitHandler;

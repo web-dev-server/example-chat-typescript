@@ -1,8 +1,10 @@
 class Chat {
-	static readonly ADDRESS: string = '%websocket.protocol%//%location.host%%location.pathname%js/build/server/app/';
-    public Static: typeof Chat;
+	public static readonly AJAX_LOGIN_ADDRESS: string = '%location.protocol%//%location.host%%location.pathname%js/server/app/?login-submit';
+	public static readonly WEB_SOCKETS_ADDRESS: string = '%websocket.protocol%//%location.host%%location.pathname%js/server/app/';
+	
+	protected static: typeof Chat;
 
-    private _development: boolean = true;
+    private _development: boolean = false;
     private _id: number;
     private _user: string;
     private _socket: WebSocketWrapper;
@@ -16,7 +18,7 @@ class Chat {
     private _onlineUsers: HTMLDivElement;
     private _messages: HTMLDivElement;
     private _messageForm: HTMLFormElement;
-	private _recepientsElms: RadioNodeList;
+	private _recepientsElms: HTMLInputElement[];
     private _messageElm: HTMLTextAreaElement;
     private _recepients: HTMLDivElement;
     private _audioElm: HTMLAudioElement;
@@ -24,11 +26,14 @@ class Chat {
     private _typingUsers: HTMLSpanElement;
 	
     public constructor () {
-        this.Static = new.target;
+        this.static = new.target;
         this._initElements();
         this._initEvents();
-        if (this._development)
+        if (this._development) {
             this._developmentAutoLogin();
+		} else {
+			this._autoLogin();
+		}
     }
     
 	private _initElements (): void {
@@ -42,16 +47,26 @@ class Chat {
         this._onlineUsers = $<HTMLDivElement>("online-users");
         this._messages = $<HTMLDivElement>("messages");
         this._messageForm = $<HTMLFormElement>("message-form");
-		this._recepientsElms = this._messageForm.rcp as RadioNodeList;
+		this._initElementRecepients();
         this._messageElm = this._messageForm.message as HTMLTextAreaElement;
         this._recepients = $<HTMLDivElement>("recepients");
         this._audioElm = $<HTMLAudioElement>("msg-sound");
         this._typingUsersCont = $<HTMLDivElement>("typing-users-cont");
         this._typingUsers = $<HTMLSpanElement>("typing-users");
     }
+	private _initElementRecepients (): void {
+		var rcp = this._messageForm.rcp;
+		this._recepientsElms = rcp instanceof HTMLInputElement
+			? [rcp]
+			: rcp ;
+	}
     private _initEvents (): void {
         this._loginForm.addEventListener('submit', this._loginSubmitHandler.bind(this));
         this._logoutBtn.addEventListener('click', (e: MouseEvent) => {
+			this._socket.Send('logout', <WsMsgClientLoginLogout>{
+				id: this._id,
+				user: this._user
+			});
             this._socket.Close();
             location.reload();
         });
@@ -65,8 +80,7 @@ class Chat {
             // enter + ctrl
             if (!(e.keyCode == 13 && e.ctrlKey)) {
                 this._messageFormTypingHandler(
-					String(this._messageElm.value).trim().length > 0, 
-					e
+					String(this._messageElm.value).trim().length > 0, e
 				);
             }
         });
@@ -101,16 +115,23 @@ class Chat {
             }));
         }
     }
+	private _autoLogin (): void {
+		Ajax.load(<Ajax.LoadConfig>{
+			url: this._getLoginUrl(),
+			method: 'POST',
+			success: (data: AjaxMsgServerLogin, statusCode, xhr) => {
+				if (data.success) 
+					this._initChatRoom(String(data.user), Number(data.id));
+			},
+			type: 'json'
+		});
+	}
     private _loginSubmitHandler (e: Event): void {
         var user = this._loginUserElm.value, 
 			pass = this._loginPassElm.value;
         if (user != '' && pass != '') {
-            var pathName = location.pathname, 
-				lastSlashPos = pathName.lastIndexOf('/');
-            if (lastSlashPos > -1)
-                pathName = pathName.substring(0, lastSlashPos + 1);
             Ajax.load(<Ajax.LoadConfig>{
-                url: location.origin + pathName + 'js/server/app/?login-submit',
+				url: this._getLoginUrl(),
                 method: 'POST',
                 data: <AjaxMsgClientLogin>{
                     user: user,
@@ -120,17 +141,23 @@ class Chat {
                     if (data.success) {
                         this._initChatRoom(user, Number(data.id));
                     } else {
-                        alert("Wrong login or password.");
+                        alert(data.message);
                     }
                 },
                 type: 'json',
                 error: (responseText, statusCode, xhr) => {
-                    alert("Wrong username or password. See: ./chat/data/login-data.csv");
+                    alert(responseText);
                 }
             });
         }
         e.preventDefault();
     }
+	private _getLoginUrl (): string {
+		return this.static.AJAX_LOGIN_ADDRESS
+			.replace('%location.protocol%', location.protocol)
+			.replace('%location.host%', location.host)
+			.replace('%location.pathname%', location.pathname);
+	}
     private _initChatRoom (user: string, id: number): void {
         this._loginUserElm.value = '';
         this._loginPassElm.value = '';
@@ -140,16 +167,16 @@ class Chat {
         this._user = user;
         this._currentUser.innerHTML = this._user;
         this._scrollToBottom();
-        this._initChatWebSocketComunication();
+		this._initChatWebSocketComunication();
     }
     private _initChatWebSocketComunication (): void {
         // connect to server:
-        this._socket = WebSocketWrapper.GetInstance(this.Static.ADDRESS
+        this._socket = WebSocketWrapper.GetInstance(this.static.WEB_SOCKETS_ADDRESS
             .replace('%websocket.protocol%', location.protocol === 'https:' ? 'wss:' : 'ws:')
             .replace('%location.host%', location.host)
             .replace('%location.pathname%', location.pathname));
         // tell the server to login this user:
-        this._socket.Send('login', <WsMsgClientLogin>{
+        this._socket.Send('login', <WsMsgClientLoginLogout>{
             id: this._id,
             user: this._user
         });
@@ -192,15 +219,13 @@ class Chat {
         });
     }
     private _getRecepient(): string {
-        var recepientRadio: HTMLInputElement, 
-			recepient: string = '';
-        for (var i = 0, l = this._recepientsElms.length; i < l; i += 1) {
-            recepientRadio = this._recepientsElms[i] as HTMLInputElement;
-            if (recepientRadio.checked) {
+        var recepient: string = '';
+		for (var recepientRadio of this._recepientsElms) {
+			if (recepientRadio.checked) {
                 recepient = recepientRadio.value;
                 break;
             }
-        }
+		}
         return recepient;
     }
     private _anyUserLogInHandler (data: WsMsgServerLoginLogout, live: boolean = true): void {
@@ -229,7 +254,6 @@ class Chat {
     }
     private _updateOnlineUsersHandler (data: WsMsgServerLoginLogout): void {
         var onlineUsers = data.onlineUsers, 
-			userIdInt: number,
 			html: string = '', 
 			separator: string = '';
         for (var userIdStr in onlineUsers) {
@@ -265,6 +289,7 @@ class Chat {
                 + '</div>';
         }
         this._recepients.innerHTML = html;
+		this._initElementRecepients();
     }
     private _scrollToBottom (): void {
         this._messages.scrollTop = this._messages.scrollHeight;

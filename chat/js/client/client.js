@@ -1,11 +1,15 @@
 class Chat {
     constructor() {
-        this._development = true;
-        this.Static = new.target;
+        this._development = false;
+        this.static = new.target;
         this._initElements();
         this._initEvents();
-        if (this._development)
+        if (this._development) {
             this._developmentAutoLogin();
+        }
+        else {
+            this._autoLogin();
+        }
     }
     _initElements() {
         var $ = (id) => { return document.getElementById(id); };
@@ -18,16 +22,26 @@ class Chat {
         this._onlineUsers = $("online-users");
         this._messages = $("messages");
         this._messageForm = $("message-form");
-        this._recepientsElms = this._messageForm.rcp;
+        this._initElementRecepients();
         this._messageElm = this._messageForm.message;
         this._recepients = $("recepients");
         this._audioElm = $("msg-sound");
         this._typingUsersCont = $("typing-users-cont");
         this._typingUsers = $("typing-users");
     }
+    _initElementRecepients() {
+        var rcp = this._messageForm.rcp;
+        this._recepientsElms = rcp instanceof HTMLInputElement
+            ? [rcp]
+            : rcp;
+    }
     _initEvents() {
         this._loginForm.addEventListener('submit', this._loginSubmitHandler.bind(this));
         this._logoutBtn.addEventListener('click', (e) => {
+            this._socket.Send('logout', {
+                id: this._id,
+                user: this._user
+            });
             this._socket.Close();
             location.reload();
         });
@@ -73,14 +87,22 @@ class Chat {
             }));
         }
     }
+    _autoLogin() {
+        Ajax.load({
+            url: this._getLoginUrl(),
+            method: 'POST',
+            success: (data, statusCode, xhr) => {
+                if (data.success)
+                    this._initChatRoom(String(data.user), Number(data.id));
+            },
+            type: 'json'
+        });
+    }
     _loginSubmitHandler(e) {
         var user = this._loginUserElm.value, pass = this._loginPassElm.value;
         if (user != '' && pass != '') {
-            var pathName = location.pathname, lastSlashPos = pathName.lastIndexOf('/');
-            if (lastSlashPos > -1)
-                pathName = pathName.substring(0, lastSlashPos + 1);
             Ajax.load({
-                url: location.origin + pathName + 'js/server/app/?login-submit',
+                url: this._getLoginUrl(),
                 method: 'POST',
                 data: {
                     user: user,
@@ -91,16 +113,22 @@ class Chat {
                         this._initChatRoom(user, Number(data.id));
                     }
                     else {
-                        alert("Wrong login or password.");
+                        alert(data.message);
                     }
                 },
                 type: 'json',
                 error: (responseText, statusCode, xhr) => {
-                    alert("Wrong username or password. See: ./chat/data/login-data.csv");
+                    alert(responseText);
                 }
             });
         }
         e.preventDefault();
+    }
+    _getLoginUrl() {
+        return this.static.AJAX_LOGIN_ADDRESS
+            .replace('%location.protocol%', location.protocol)
+            .replace('%location.host%', location.host)
+            .replace('%location.pathname%', location.pathname);
     }
     _initChatRoom(user, id) {
         this._loginUserElm.value = '';
@@ -115,7 +143,7 @@ class Chat {
     }
     _initChatWebSocketComunication() {
         // connect to server:
-        this._socket = WebSocketWrapper.GetInstance(this.Static.ADDRESS
+        this._socket = WebSocketWrapper.GetInstance(this.static.WEB_SOCKETS_ADDRESS
             .replace('%websocket.protocol%', location.protocol === 'https:' ? 'wss:' : 'ws:')
             .replace('%location.host%', location.host)
             .replace('%location.pathname%', location.pathname));
@@ -159,9 +187,8 @@ class Chat {
         });
     }
     _getRecepient() {
-        var recepientRadio, recepient = '';
-        for (var i = 0, l = this._recepientsElms.length; i < l; i += 1) {
-            recepientRadio = this._recepientsElms[i];
+        var recepient = '';
+        for (var recepientRadio of this._recepientsElms) {
             if (recepientRadio.checked) {
                 recepient = recepientRadio.value;
                 break;
@@ -199,7 +226,7 @@ class Chat {
         this._scrollToBottom();
     }
     _updateOnlineUsersHandler(data) {
-        var onlineUsers = data.onlineUsers, userIdInt, html = '', separator = '';
+        var onlineUsers = data.onlineUsers, html = '', separator = '';
         for (var userIdStr in onlineUsers) {
             html += separator + onlineUsers[userIdStr];
             separator = ', ';
@@ -233,11 +260,14 @@ class Chat {
                 + '</div>';
         }
         this._recepients.innerHTML = html;
+        this._initElementRecepients();
     }
     _scrollToBottom() {
         this._messages.scrollTop = this._messages.scrollHeight;
     }
 }
-Chat.ADDRESS = '%websocket.protocol%//%location.host%%location.pathname%js/build/server/app/';
+Chat.AJAX_LOGIN_ADDRESS = '%location.protocol%//%location.host%%location.pathname%js/server/app/?login-submit';
+Chat.WEB_SOCKETS_ADDRESS = '%websocket.protocol%//%location.host%%location.pathname%js/server/app/';
 ///@ts-ignore
 window.chat = new Chat();
+//# sourceMappingURL=client.js.map

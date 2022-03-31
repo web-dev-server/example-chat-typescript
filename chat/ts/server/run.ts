@@ -1,9 +1,10 @@
 import { Server, Request, Response, Event } from "web-dev-server";
+//import { Server, Request, Response, Event } from "../../../../web-dev-server/build/lib/Server";
 
 // Create web server instance.
 Server.CreateNew()
     // Required.
-    .SetDocumentRoot(__dirname + '/../../../')
+    .SetDocumentRoot(__dirname + '/../../')
     // Optional, 8000 by default.
     .SetPort(8000)
     // Optional, '127.0.0.1' by default.

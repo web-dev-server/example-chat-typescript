@@ -159,3 +159,4 @@ class WebSocketWrapper {
 }
 WebSocketWrapper.RECONNECT_TIMEOUT = 1000; // 1s
 WebSocketWrapper._instances = new Map();
+//# sourceMappingURL=socket-wrapper.js.map

@@ -1,10 +1,11 @@
 import WebSocket from 'ws';
 import { promises as fs } from 'fs';
-import unused from "./prototype-extending";
+import __prototypeExtending from "./prototype-extending";
 ///@ts-ignore
-global['__unused'] = unused;
+global['__prototypeExtending'] = __prototypeExtending;
 import ServerSessionNamespace from "./../../types/ServerSessionNamespace";
 import * as WebDevServer from "web-dev-server";
+//import * as WebDevServer from "../../../../../web-dev-server/build/lib/Server";
 
 
 export default class App implements WebDevServer.IApplication {
@@ -18,6 +19,7 @@ export default class App implements WebDevServer.IApplication {
 	protected logger: WebDevServer.Tools.Logger;
 	protected httpServer: WebDevServer.Server;
 	protected wsServer: WebSocket.Server<WebSocket.WebSocket>;
+	protected requestPath: string;
 	protected onlineUsers: Map<number, ServerOnlineUser> = new Map<number, ServerOnlineUser>();
 	protected data: WsMsgServerRecepient[] = [];
 	protected typingUsers: Map<string, boolean> = new Map<string, boolean>();
@@ -36,9 +38,7 @@ export default class App implements WebDevServer.IApplication {
 			server: server.GetHttpServer()
 		});
 		console.log("WebSocket server initialized.");
-		this.wsServer.on('connection', async (socket: WebSocket.WebSocket, request: WebDevServer.Request): Promise<void> => {
-			await this.handleWebSocketConnection(socket, request);
-		});
+		this.wsServer.on('connection', await this.handleWebSocketConnection.bind(this));
 	}
 	public async Stop (server: WebDevServer.Server): Promise<void> {
 		this.wsServer.close(function () {
@@ -49,10 +49,12 @@ export default class App implements WebDevServer.IApplication {
 	
 	public async HttpHandle (request: WebDevServer.Request, response: WebDevServer.Response): Promise<void> {
 		if (!request.IsCompleted()) await request.GetBody();
+
+		if (this.requestPath == null)
+			this.requestPath = request.GetBasePath() + request.GetPath();
 		
 		var session = await WebDevServer.Session.Start(request, response),
-			sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME) as ServerSessionNamespace;
-		sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+			sessionNamespace = await this.getSessionNamespace(session.GetId());
 
 		if (this.users.size === 0) 
 			this.users = await this.httpHandleLoadUsersCsv();
@@ -91,6 +93,7 @@ export default class App implements WebDevServer.IApplication {
 		} else if (sessionNamespace.authenticated) {
 			ajaxResponse.success = true;
 			ajaxResponse.id = sessionNamespace.id;
+			ajaxResponse.user = sessionNamespace.user;
 			ajaxResponse.message = 'User is already authenticated.';
 		} else {
 			/***************************************************************************/
@@ -111,6 +114,7 @@ export default class App implements WebDevServer.IApplication {
 				
 				ajaxResponse.success = true;
 				ajaxResponse.id = id;
+				ajaxResponse.user = user;
 				ajaxResponse.message = "User has been authenticated.";
 
 			}
@@ -120,6 +124,9 @@ export default class App implements WebDevServer.IApplication {
 	}
 
 	protected async handleWebSocketConnection (socket: WebSocket.WebSocket, request: WebDevServer.Request): Promise<void> {
+		var reqPath = request.GetBasePath() + request.GetPath();
+		if (reqPath !== this.requestPath) 
+			return console.log(`Websocket connection to different path: '${reqPath}'.`);
 		var sessionId = request.GetCookie(WebDevServer.Session.GetCookieName(), "a-zA-Z0-9");
 		if (sessionId == null) {
 			console.log("Connected user with no session id.");
@@ -130,9 +137,7 @@ export default class App implements WebDevServer.IApplication {
 			console.log(`Connected user with no started session (session id: '${sessionId}').`);
 			return socket.close(4000, 'No started session.');
 		}
-		var session = await WebDevServer.Session.Get(sessionId),
-			sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME) as ServerSessionNamespace;
-		sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+		var sessionNamespace = await this.getSessionNamespace(sessionId);
 		if (!sessionNamespace.authenticated) {
 			console.log(`Connected not authorized user (session id: '${sessionId}').`);
 			return socket.close(4000, 'Not authorized session.');
@@ -154,9 +159,9 @@ export default class App implements WebDevServer.IApplication {
 			});
 		}
 		this.sendLastComunication(socket, sessionId, id);
-		socket.on('message', (rawData: WebSocket.RawData, isBinary: boolean): void => {
+		socket.on('message', async (rawData: WebSocket.RawData, isBinary: boolean): Promise<void> => {
 			try {
-				this.handleWebSocketOnMessage(rawData, socket);
+				await this.handleWebSocketOnMessage(rawData, socket, String(sessionId));
 			} catch (e) {
 				if (e instanceof Error) {
 					this.logger.Error(e as Error);
@@ -168,12 +173,15 @@ export default class App implements WebDevServer.IApplication {
 		socket.on('close', this.handleWebSocketOnClose.bind(this, sessionId));
 		socket.on('error', this.handleWebSocketOnError.bind(this, sessionId));
 	}
-	protected handleWebSocketOnMessage (rawData: WebSocket.RawData, socket: WebSocket.WebSocket): void {
+	protected async handleWebSocketOnMessage (rawData: WebSocket.RawData, socket: WebSocket.WebSocket, sessionId: string): Promise<void> {
 		var sendedData = JSON.parse(rawData.toString()) as WsMsg,
 			eventName = sendedData.eventName;
 		
 		if (eventName == 'login') {
-			this.handleWebSocketOnChatLogin(sendedData.data);
+			this.handleWebSocketOnChatLogin(sendedData.data, sessionId);
+
+		} else if (eventName == 'logout') {
+			await this.handleWebSocketOnChatLogout(sendedData.data);
 
 		} else if (eventName == 'message') {
 			this.handleWebSocketOnChatMessage(sendedData.data, socket);
@@ -184,14 +192,27 @@ export default class App implements WebDevServer.IApplication {
 		}
 	}
 
-	protected handleWebSocketOnChatLogin (data: WsMsgData): void {
-		this.sendToAll('login', <WsMsgServerLoginLogout>{
+	protected handleWebSocketOnChatLogin (data: WsMsgData, sessionId: string): void {
+		this.sendToAllExceptMyself('login', <WsMsgServerLoginLogout>{
 			onlineUsers: this.serializeOnlineUsers().toObject(), 
 			onlineUsersCount: this.onlineUsers.size, 
 			id: data.id,
 			user: data.user
-		});
+		}, sessionId);
 		console.log(`User '${data.user}' joined the chat room.`);
+	}
+	protected async handleWebSocketOnChatLogout (data: WsMsgData): Promise<void> {
+		if (this.onlineUsers.has(data.id)) {
+			var userToDelete = await this.logOutUser(this.onlineUsers.value(data.id).sessionId, true);
+			if (userToDelete != null)
+				console.log(`User '${userToDelete.user}' exited the chat room (logout button).`);
+		} else {
+			try {
+				throw new Error(`No user for id '${data.id}' to log out.`);
+			} catch (e) {
+				this.logger.Error(e as Error);
+			}
+		}
 	}
 	protected handleWebSocketOnChatMessage (data: WsMsgData, socket: WebSocket.WebSocket): void {
 		var msgData = data as WsMsgClientMessage,
@@ -242,28 +263,42 @@ export default class App implements WebDevServer.IApplication {
 		}
 	}
 
-	protected handleWebSocketOnClose (sessionId: string, code: number, reason: Buffer): void {
-		var userToDelete = this.deleteOnlineUserBySessionId(sessionId);
-		if (userToDelete == null) return;
-		this.sendToAllExceptMyself('logout', <WsMsgServerLoginLogout>{
-			onlineUsers: this.serializeOnlineUsers().toObject(), 
-			onlineUsersCount: this.onlineUsers.size, 
-			id: userToDelete.id,
-			user: userToDelete.user
-		}, sessionId);
-		console.log(`User '${userToDelete.user}' exited the chat room (code: ${code}, reason: ${reason}).`);
+	protected async handleWebSocketOnClose (sessionId: string, code: number, reason: Buffer): Promise<void> {
+		var userToDelete = await this.logOutUser(sessionId, false);
+		if (userToDelete != null)
+			console.log(`User '${userToDelete.user}' exited the chat room (code: ${code}, reason: ${reason}).`);
 	}
-	protected handleWebSocketOnError (sessionId: string, err: Error): void {
+	protected async handleWebSocketOnError (sessionId: string, err: Error): Promise<void> {
 		this.logger.Error(err);
-		var userToDelete = this.deleteOnlineUserBySessionId(sessionId);
-		if (userToDelete == null) return;
+		var userToDelete = await this.logOutUser(sessionId, false);
+		if (userToDelete != null)
+			console.log(`User '${userToDelete.user}' exited the chat room because of an error.`);
+	}
+	protected async logOutUser (sessionId: string, deauthenticateHttpSession: boolean): Promise<ServerOnlineUser | null> {
+		var userToDelete: ServerOnlineUser | null = null;
+		for (var [userId, onlineUser] of this.onlineUsers) {
+			if (sessionId === onlineUser.sessionId) {
+				userToDelete = onlineUser;
+				break;
+			}
+		}
+		if (userToDelete != null) 
+			this.onlineUsers.delete(userToDelete.id);
+		if (deauthenticateHttpSession) {
+			var sessionNamespace = await this.getSessionNamespace(sessionId);
+			sessionNamespace.authenticated = false;
+		}
+		if (userToDelete == null) 
+			return null;
+		this.typingUsers.set(userToDelete.user, false);
+		this.sendToAllExceptMyself('typing', this.typingUsers.toObject() as WsMsgServerTyping, sessionId);
 		this.sendToAllExceptMyself('logout', <WsMsgServerLoginLogout>{
 			onlineUsers: this.serializeOnlineUsers().toObject(), 
 			onlineUsersCount: this.onlineUsers.size, 
 			id: userToDelete.id,
 			user: userToDelete.user
 		}, sessionId);
-		console.log(`User '${userToDelete.user}' exited the chat room because of an error.`);
+		return userToDelete;
 	}
 
 	protected sendToAll (eventName: string, data: WsMsgData | WsMsgServerTyping): void {
@@ -274,7 +309,8 @@ export default class App implements WebDevServer.IApplication {
 		};
 		var responseStr = JSON.stringify(response);
 		delete response.live;
-		this.data.push(response);
+		if (eventName !== 'typing')
+			this.data.push(response);
 		if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
 			this.data.shift();
 		for (var [userId, onlineUser] of this.onlineUsers) {
@@ -296,10 +332,11 @@ export default class App implements WebDevServer.IApplication {
 		var responseStr = JSON.stringify(response);
 		delete response.live;
 		response.targetSessionId = targetSessionId;
-		this.data.push(response);
+		if (eventName !== 'typing')
+			this.data.push(response);
 		if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
 			this.data.shift();
-			for (var [userId, onlineUser] of this.onlineUsers) {
+		for (var [userId, onlineUser] of this.onlineUsers) {
 			if (onlineUser.sessionId === targetSessionId) {
 				if (onlineUser.ws != null && onlineUser.ws.readyState === WebSocket.OPEN) {
 					try {
@@ -326,7 +363,7 @@ export default class App implements WebDevServer.IApplication {
 			console.log(e);
 		}
 	}
-	protected sendToAllExceptMyself (eventName: string, data: WsMsgData, myselfSessionId: string): void {
+	protected sendToAllExceptMyself (eventName: string, data: WsMsgData | WsMsgServerTyping, myselfSessionId: string): void {
 		var response = <WsMsgServerRecepient>{
 			eventName: eventName,
 			data: data,
@@ -334,7 +371,8 @@ export default class App implements WebDevServer.IApplication {
 		};
 		var responseStr = JSON.stringify(response);
 		delete response.live;
-		this.data.push(response);
+		if (eventName !== 'typing')
+			this.data.push(response);
 		if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
 			this.data.shift();
 			for (var [userId, onlineUser] of this.onlineUsers) {
@@ -357,9 +395,9 @@ export default class App implements WebDevServer.IApplication {
 		var lastMessagesCount = this.static.LAST_CHAT_MESSAGES_TO_SEND, 
 			response: WsMsgServerRecepient;
 		for (
-			var i = Math.min(this.data.length - 1, this.static.LAST_CHAT_MESSAGES_TO_SEND);
-			i >= 0; 
-			i -= 1
+			var i = 0;
+			i < Math.min(this.data.length - 1, this.static.LAST_CHAT_MESSAGES_TO_SEND); 
+			i += 1
 		) {
 			response = this.data[i];
 			if (
@@ -398,24 +436,10 @@ export default class App implements WebDevServer.IApplication {
 		}
 		return [recepientName, recepientId];
 	} 
-	protected deleteOnlineUserBySessionId (sessionId: string): ServerOnlineUser | null {
-		var userToDelete: ServerOnlineUser | null = null;
-		for (var [userId, onlineUser] of this.onlineUsers) {
-			if (sessionId === onlineUser.sessionId) {
-				userToDelete = onlineUser;
-				break;
-			}
-		}
-		if (userToDelete != null) {
-			this.onlineUsers.delete(userToDelete.id);
-		} else {
-			try {
-				throw new Error(`No user for session id '${sessionId}' to close socket connection.`);
-			} catch (e) {
-				this.logger.Error(e as Error);
-			}
-			return null;
-		}
-		return userToDelete;
+	protected async getSessionNamespace (sessionId: string): Promise<ServerSessionNamespace> {
+		var session = await WebDevServer.Session.Get(sessionId),
+			sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME) as ServerSessionNamespace;
+		sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+		return sessionNamespace;
 	}
 };

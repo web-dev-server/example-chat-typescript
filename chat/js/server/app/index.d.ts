@@ -13,6 +13,7 @@ export default class App implements WebDevServer.IApplication {
     protected logger: WebDevServer.Tools.Logger;
     protected httpServer: WebDevServer.Server;
     protected wsServer: WebSocket.Server<WebSocket.WebSocket>;
+    protected requestPath: string;
     protected onlineUsers: Map<number, ServerOnlineUser>;
     protected data: WsMsgServerRecepient[];
     protected typingUsers: Map<string, boolean>;
@@ -24,19 +25,21 @@ export default class App implements WebDevServer.IApplication {
     protected httpHandleLoadUsersCsv(): Promise<Map<string, ServerUserRecord>>;
     protected httpHandleAuthUser(request: WebDevServer.Request, sessionNamespace: ServerSessionNamespace): AjaxMsgServerLogin;
     protected handleWebSocketConnection(socket: WebSocket.WebSocket, request: WebDevServer.Request): Promise<void>;
-    protected handleWebSocketOnMessage(rawData: WebSocket.RawData, socket: WebSocket.WebSocket): void;
-    protected handleWebSocketOnChatLogin(data: WsMsgData): void;
+    protected handleWebSocketOnMessage(rawData: WebSocket.RawData, socket: WebSocket.WebSocket, sessionId: string): Promise<void>;
+    protected handleWebSocketOnChatLogin(data: WsMsgData, sessionId: string): void;
+    protected handleWebSocketOnChatLogout(data: WsMsgData): Promise<void>;
     protected handleWebSocketOnChatMessage(data: WsMsgData, socket: WebSocket.WebSocket): void;
     protected handleWebSocketOnChatTyping(data: WsMsgData): void;
-    protected handleWebSocketOnClose(sessionId: string, code: number, reason: Buffer): void;
-    protected handleWebSocketOnError(sessionId: string, err: Error): void;
+    protected handleWebSocketOnClose(sessionId: string, code: number, reason: Buffer): Promise<void>;
+    protected handleWebSocketOnError(sessionId: string, err: Error): Promise<void>;
+    protected logOutUser(sessionId: string, deauthenticateHttpSession: boolean): Promise<ServerOnlineUser | null>;
     protected sendToAll(eventName: string, data: WsMsgData | WsMsgServerTyping): void;
     protected sendToSingle(eventName: string, data: WsMsgData | WsMsgServerTyping, targetSessionId: string): void;
     protected sendToMyself(eventName: string, data: WsMsgData, socket: WebSocket.WebSocket): void;
-    protected sendToAllExceptMyself(eventName: string, data: WsMsgData, myselfSessionId: string): void;
+    protected sendToAllExceptMyself(eventName: string, data: WsMsgData | WsMsgServerTyping, myselfSessionId: string): void;
     protected sendLastComunication(socket: WebSocket.WebSocket, sessionId: string, currentUserId: number): void;
     protected serializeOnlineUsers(): Map<number, string>;
     protected getWebSocketMessageRecepient(data: WsMsgClientMessage | WsMsgClientTyping): [string, number | null];
-    protected deleteOnlineUserBySessionId(sessionId: string): ServerOnlineUser | null;
+    protected getSessionNamespace(sessionId: string): Promise<ServerSessionNamespace>;
 }
 //# sourceMappingURL=index.d.ts.map

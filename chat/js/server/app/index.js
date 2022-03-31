@@ -5,8 +5,9 @@ const ws_1 = tslib_1.__importDefault(require("ws"));
 const fs_1 = require("fs");
 const prototype_extending_1 = tslib_1.__importDefault(require("./prototype-extending"));
 ///@ts-ignore
-global['__unused'] = prototype_extending_1.default;
+global['__prototypeExtending'] = prototype_extending_1.default;
 const WebDevServer = tslib_1.__importStar(require("web-dev-server"));
+//import * as WebDevServer from "../../../../../web-dev-server/build/lib/Server";
 class App {
     constructor() {
         this.onlineUsers = new Map();
@@ -22,9 +23,7 @@ class App {
                 server: server.GetHttpServer()
             });
             console.log("WebSocket server initialized.");
-            this.wsServer.on('connection', (socket, request) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-                yield this.handleWebSocketConnection(socket, request);
-            }));
+            this.wsServer.on('connection', yield this.handleWebSocketConnection.bind(this));
         });
     }
     Stop(server) {
@@ -39,8 +38,9 @@ class App {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (!request.IsCompleted())
                 yield request.GetBody();
-            var session = yield WebDevServer.Session.Start(request, response), sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME);
-            sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+            if (this.requestPath == null)
+                this.requestPath = request.GetBasePath() + request.GetPath();
+            var session = yield WebDevServer.Session.Start(request, response), sessionNamespace = yield this.getSessionNamespace(session.GetId());
             if (this.users.size === 0)
                 this.users = yield this.httpHandleLoadUsersCsv();
             var responseBody = this.httpHandleAuthUser(request, sessionNamespace);
@@ -78,6 +78,7 @@ class App {
         else if (sessionNamespace.authenticated) {
             ajaxResponse.success = true;
             ajaxResponse.id = sessionNamespace.id;
+            ajaxResponse.user = sessionNamespace.user;
             ajaxResponse.message = 'User is already authenticated.';
         }
         else {
@@ -98,6 +99,7 @@ class App {
                 sessionNamespace.authenticated = true;
                 ajaxResponse.success = true;
                 ajaxResponse.id = id;
+                ajaxResponse.user = user;
                 ajaxResponse.message = "User has been authenticated.";
             }
             /***************************************************************************/
@@ -106,6 +108,9 @@ class App {
     }
     handleWebSocketConnection(socket, request) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            var reqPath = request.GetBasePath() + request.GetPath();
+            if (reqPath !== this.requestPath)
+                return console.log(`Websocket connection to different path: '${reqPath}'.`);
             var sessionId = request.GetCookie(WebDevServer.Session.GetCookieName(), "a-zA-Z0-9");
             if (sessionId == null) {
                 console.log("Connected user with no session id.");
@@ -116,8 +121,7 @@ class App {
                 console.log(`Connected user with no started session (session id: '${sessionId}').`);
                 return socket.close(4000, 'No started session.');
             }
-            var session = yield WebDevServer.Session.Get(sessionId), sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME);
-            sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+            var sessionNamespace = yield this.getSessionNamespace(sessionId);
             if (!sessionNamespace.authenticated) {
                 console.log(`Connected not authorized user (session id: '${sessionId}').`);
                 return socket.close(4000, 'Not authorized session.');
@@ -138,9 +142,9 @@ class App {
                 });
             }
             this.sendLastComunication(socket, sessionId, id);
-            socket.on('message', (rawData, isBinary) => {
+            socket.on('message', (rawData, isBinary) => tslib_1.__awaiter(this, void 0, void 0, function* () {
                 try {
-                    this.handleWebSocketOnMessage(rawData, socket);
+                    yield this.handleWebSocketOnMessage(rawData, socket, String(sessionId));
                 }
                 catch (e) {
                     if (e instanceof Error) {
@@ -150,31 +154,53 @@ class App {
                         console.error(e);
                     }
                 }
-            });
+            }));
             socket.on('close', this.handleWebSocketOnClose.bind(this, sessionId));
             socket.on('error', this.handleWebSocketOnError.bind(this, sessionId));
         });
     }
-    handleWebSocketOnMessage(rawData, socket) {
-        var sendedData = JSON.parse(rawData.toString()), eventName = sendedData.eventName;
-        if (eventName == 'login') {
-            this.handleWebSocketOnChatLogin(sendedData.data);
-        }
-        else if (eventName == 'message') {
-            this.handleWebSocketOnChatMessage(sendedData.data, socket);
-        }
-        else if (eventName == 'typing') {
-            this.handleWebSocketOnChatTyping(sendedData.data);
-        }
+    handleWebSocketOnMessage(rawData, socket, sessionId) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            var sendedData = JSON.parse(rawData.toString()), eventName = sendedData.eventName;
+            if (eventName == 'login') {
+                this.handleWebSocketOnChatLogin(sendedData.data, sessionId);
+            }
+            else if (eventName == 'logout') {
+                yield this.handleWebSocketOnChatLogout(sendedData.data);
+            }
+            else if (eventName == 'message') {
+                this.handleWebSocketOnChatMessage(sendedData.data, socket);
+            }
+            else if (eventName == 'typing') {
+                this.handleWebSocketOnChatTyping(sendedData.data);
+            }
+        });
     }
-    handleWebSocketOnChatLogin(data) {
-        this.sendToAll('login', {
+    handleWebSocketOnChatLogin(data, sessionId) {
+        this.sendToAllExceptMyself('login', {
             onlineUsers: this.serializeOnlineUsers().toObject(),
             onlineUsersCount: this.onlineUsers.size,
             id: data.id,
             user: data.user
-        });
+        }, sessionId);
         console.log(`User '${data.user}' joined the chat room.`);
+    }
+    handleWebSocketOnChatLogout(data) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            if (this.onlineUsers.has(data.id)) {
+                var userToDelete = yield this.logOutUser(this.onlineUsers.value(data.id).sessionId, true);
+                if (userToDelete != null)
+                    console.log(`User '${userToDelete.user}' exited the chat room (logout button).`);
+            }
+            else {
+                try {
+                    throw new Error(`No user for id '${data.id}' to log out.`);
+                }
+                catch (e) {
+                    this.logger.Error(e);
+                }
+            }
+        });
     }
     handleWebSocketOnChatMessage(data, socket) {
         var msgData = data, [recepientName, recepientId] = this.getWebSocketMessageRecepient(msgData), clientMsgData = {
@@ -217,29 +243,47 @@ class App {
         }
     }
     handleWebSocketOnClose(sessionId, code, reason) {
-        var userToDelete = this.deleteOnlineUserBySessionId(sessionId);
-        if (userToDelete == null)
-            return;
-        this.sendToAllExceptMyself('logout', {
-            onlineUsers: this.serializeOnlineUsers().toObject(),
-            onlineUsersCount: this.onlineUsers.size,
-            id: userToDelete.id,
-            user: userToDelete.user
-        }, sessionId);
-        console.log(`User '${userToDelete.user}' exited the chat room (code: ${code}, reason: ${reason}).`);
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            var userToDelete = yield this.logOutUser(sessionId, false);
+            if (userToDelete != null)
+                console.log(`User '${userToDelete.user}' exited the chat room (code: ${code}, reason: ${reason}).`);
+        });
     }
     handleWebSocketOnError(sessionId, err) {
-        this.logger.Error(err);
-        var userToDelete = this.deleteOnlineUserBySessionId(sessionId);
-        if (userToDelete == null)
-            return;
-        this.sendToAllExceptMyself('logout', {
-            onlineUsers: this.serializeOnlineUsers().toObject(),
-            onlineUsersCount: this.onlineUsers.size,
-            id: userToDelete.id,
-            user: userToDelete.user
-        }, sessionId);
-        console.log(`User '${userToDelete.user}' exited the chat room because of an error.`);
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.Error(err);
+            var userToDelete = yield this.logOutUser(sessionId, false);
+            if (userToDelete != null)
+                console.log(`User '${userToDelete.user}' exited the chat room because of an error.`);
+        });
+    }
+    logOutUser(sessionId, deauthenticateHttpSession) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            var userToDelete = null;
+            for (var [userId, onlineUser] of this.onlineUsers) {
+                if (sessionId === onlineUser.sessionId) {
+                    userToDelete = onlineUser;
+                    break;
+                }
+            }
+            if (userToDelete != null)
+                this.onlineUsers.delete(userToDelete.id);
+            if (deauthenticateHttpSession) {
+                var sessionNamespace = yield this.getSessionNamespace(sessionId);
+                sessionNamespace.authenticated = false;
+            }
+            if (userToDelete == null)
+                return null;
+            this.typingUsers.set(userToDelete.user, false);
+            this.sendToAllExceptMyself('typing', this.typingUsers.toObject(), sessionId);
+            this.sendToAllExceptMyself('logout', {
+                onlineUsers: this.serializeOnlineUsers().toObject(),
+                onlineUsersCount: this.onlineUsers.size,
+                id: userToDelete.id,
+                user: userToDelete.user
+            }, sessionId);
+            return userToDelete;
+        });
     }
     sendToAll(eventName, data) {
         var response = {
@@ -249,7 +293,8 @@ class App {
         };
         var responseStr = JSON.stringify(response);
         delete response.live;
-        this.data.push(response);
+        if (eventName !== 'typing')
+            this.data.push(response);
         if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
@@ -272,7 +317,8 @@ class App {
         var responseStr = JSON.stringify(response);
         delete response.live;
         response.targetSessionId = targetSessionId;
-        this.data.push(response);
+        if (eventName !== 'typing')
+            this.data.push(response);
         if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
@@ -312,7 +358,8 @@ class App {
         };
         var responseStr = JSON.stringify(response);
         delete response.live;
-        this.data.push(response);
+        if (eventName !== 'typing')
+            this.data.push(response);
         if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
@@ -334,7 +381,7 @@ class App {
         if (this.data.length === 0)
             return;
         var lastMessagesCount = this.static.LAST_CHAT_MESSAGES_TO_SEND, response;
-        for (var i = Math.min(this.data.length - 1, this.static.LAST_CHAT_MESSAGES_TO_SEND); i >= 0; i -= 1) {
+        for (var i = 0; i < Math.min(this.data.length - 1, this.static.LAST_CHAT_MESSAGES_TO_SEND); i += 1) {
             response = this.data[i];
             if (response.eventName !== 'message' &&
                 response.eventName !== 'login' &&
@@ -366,27 +413,12 @@ class App {
         }
         return [recepientName, recepientId];
     }
-    deleteOnlineUserBySessionId(sessionId) {
-        var userToDelete = null;
-        for (var [userId, onlineUser] of this.onlineUsers) {
-            if (sessionId === onlineUser.sessionId) {
-                userToDelete = onlineUser;
-                break;
-            }
-        }
-        if (userToDelete != null) {
-            this.onlineUsers.delete(userToDelete.id);
-        }
-        else {
-            try {
-                throw new Error(`No user for session id '${sessionId}' to close socket connection.`);
-            }
-            catch (e) {
-                this.logger.Error(e);
-            }
-            return null;
-        }
-        return userToDelete;
+    getSessionNamespace(sessionId) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            var session = yield WebDevServer.Session.Get(sessionId), sessionNamespace = session.GetNamespace(this.static.SESSION_NAMESPACE_NAME);
+            sessionNamespace.SetExpirationSeconds(this.static.SESSION_EXPIRATION_SECONDS);
+            return sessionNamespace;
+        });
     }
 }
 exports.default = App;
@@ -397,3 +429,4 @@ App.USERS_DATA_RELATIVE_PATH = '/../../../data/login-data.csv';
 App.LOGS_DIR_RELATIVE_PATH = '/../../../logs';
 App.ALL_USERS_RECEPIENT_NAME = 'all';
 ;
+//# sourceMappingURL=index.js.map

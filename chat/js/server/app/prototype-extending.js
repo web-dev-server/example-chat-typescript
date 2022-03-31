@@ -129,3 +129,4 @@ if (!Number.isInteger)
             isFinite(value) &&
             Math.floor(value) === value);
     };
+//# sourceMappingURL=prototype-extending.js.map

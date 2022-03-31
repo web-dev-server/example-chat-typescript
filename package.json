@@ -20,8 +20,10 @@
   },
   "main": "chat/js/server/run.js",
   "scripts": {
-    "start": "node chat/js/server/run.js",
-    "postinstall": "copy-files-from-to"
+    "postinstall": "copy-files-from-to",
+    "prepublish": "npm run build",
+    "build": "tsc",
+    "start": "node chat/js/server/run.js"
   },
   "copyFiles": [
     {
