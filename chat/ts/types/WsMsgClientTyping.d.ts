@@ -1,4 +1,4 @@
 declare interface WsMsgClientTyping extends WsMsgData {
-    recepient: string;
-    typing: boolean;
+	recepient: string;
+	typing: boolean;
 }

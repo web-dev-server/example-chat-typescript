@@ -2,12 +2,12 @@ export default {
 };
 
 declare global {
-	interface String {
+	/*interface String {
 		trim (charlist?: string): string;
-	}
-	interface ObjectConstructor {
+	}*/
+	/*interface ObjectConstructor {
 		typeOf(o: any): string;
-	}
+	}*/
 	interface Object {
 		toMap<K, V>(handleKey?: (rawKey?: string, rawValue?: any) => K, handleValue?: (rawValue?: any) => V): Map<K, V>;
 	}
@@ -16,13 +16,13 @@ declare global {
 		value (key: K): V;
 		toObject (): object;
 	}
-	interface Number {
+	/*interface Number {
 		isNaN (): boolean;
 		isInteger (): boolean;
-	}
+	}*/
 }
 
-try {
+/*try {
 	Object.defineProperty(
 		String.prototype, 'trim', {
 			enumerable: false,
@@ -59,13 +59,13 @@ try {
 			}
 		}
 	);
-} catch (e) { }
-if (!Object.typeOf) {
+} catch (e) { }*/
+/*if (!Object.typeOf) {
 	Object.typeOf = function (o: any) {
 		var r = Object.prototype.toString.apply(o); // "[object Something]"
 		return r.substring(8, r.length - 1); // Something
 	}
-}
+}*/
 if (!Object.prototype.toMap) {
 	(function () {
 		var toMap = function <K, V>(map: Map<K, V>, obj: any, keys: string[]): Map<K, V> {
@@ -150,7 +150,7 @@ if (!Map.prototype.toObject)
 			}
 		}
 	);
-if (!Number.isNaN)
+/*if (!Number.isNaN)
 	Number.isNaN = window.isNaN;
 if (!Number.isInteger)
 	Number.isInteger = Number.isInteger || function (value) {
@@ -159,4 +159,4 @@ if (!Number.isInteger)
 			isFinite(value) && 
 			Math.floor(value) === value
 		);
-	};
+	};*/

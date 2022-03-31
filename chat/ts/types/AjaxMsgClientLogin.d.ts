@@ -1,4 +1,4 @@
 declare interface AjaxMsgClientLogin {
-    user: string;
-    pass: string;
+	user: string;
+	pass: string;
 }

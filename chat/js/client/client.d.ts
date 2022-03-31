@@ -25,21 +25,22 @@ declare class Chat {
     private _initElements;
     private _initElementRecepients;
     private _initEvents;
-    private _developmentAutoLogin;
-    private _autoLogin;
-    private _loginSubmitHandler;
-    private _getLoginUrl;
+    private _initAutoLogin;
+    private _initAutoLoginDevelopment;
+    private _handleClientLoginFormSubmit;
     private _initChatRoom;
-    private _initChatWebSocketComunication;
-    private _messageFormSubmitHandler;
-    private _messageFormTypingHandler;
-    private _getRecepient;
-    private _anyUserLogInHandler;
-    private _anyUserLogOutHandler;
-    private _addMessage;
-    private _updateOnlineUsersHandler;
-    private _typingUsersHandler;
+    private _initChatRoomElements;
+    private _initChatRoomEvents;
+    private _handleClientMessageFormSubmit;
+    private _handleClientMessageFormTyping;
+    private _handleServerUserLogin;
+    private _handleServerUserLogout;
+    private _handleServerUserTyping;
+    private _updateOnlineUsers;
     private _updateRecepients;
+    private _addMessage;
+    private _getRecepient;
+    private _getLoginUrl;
     private _scrollToBottom;
 }
 //# sourceMappingURL=client.d.ts.map

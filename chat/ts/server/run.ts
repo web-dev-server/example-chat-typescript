@@ -3,18 +3,18 @@ import { Server, Request, Response, Event } from "web-dev-server";
 
 // Create web server instance.
 Server.CreateNew()
-    // Required.
-    .SetDocumentRoot(__dirname + '/../../')
-    // Optional, 8000 by default.
-    .SetPort(8000)
-    // Optional, '127.0.0.1' by default.
-    .SetHostname('127.0.0.1')
-    // Optional, `true` by default to display Errors and directories.
-    .SetDevelopment(true)
-    // Optional, `null` by default, useful for apache proxy modes.
-    //.SetBaseUrl('/chat')
-    // Optional, to prepend any execution before `web-dev-server` module execution.
-    .AddPreHandler(async (
+	// Required.
+	.SetDocumentRoot(__dirname + '/../../')
+	// Optional, 8000 by default.
+	.SetPort(8000)
+	// Optional, '127.0.0.1' by default.
+	.SetHostname('127.0.0.1')
+	// Optional, `true` by default to display Errors and directories.
+	.SetDevelopment(true)
+	// Optional, `null` by default, useful for apache proxy modes.
+	//.SetBaseUrl('/chat')
+	// Optional, to prepend any execution before `web-dev-server` module execution.
+	.AddPreHandler(async (
 		req: Request, 
 		res: Response, 
 		event?: Event

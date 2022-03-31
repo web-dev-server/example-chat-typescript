@@ -25,8 +25,8 @@ export default class App implements WebDevServer.IApplication {
     protected httpHandleLoadUsersCsv(): Promise<Map<string, ServerUserRecord>>;
     protected httpHandleAuthUser(request: WebDevServer.Request, sessionNamespace: ServerSessionNamespace): AjaxMsgServerLogin;
     protected handleWebSocketConnection(socket: WebSocket.WebSocket, request: WebDevServer.Request): Promise<void>;
-    protected handleWebSocketOnMessage(rawData: WebSocket.RawData, socket: WebSocket.WebSocket, sessionId: string): Promise<void>;
-    protected handleWebSocketOnChatLogin(data: WsMsgData, sessionId: string): void;
+    protected handleWebSocketOnMessage(rawData: WebSocket.RawData, socket: WebSocket.WebSocket): Promise<void>;
+    protected handleWebSocketOnChatLogin(data: WsMsgData): void;
     protected handleWebSocketOnChatLogout(data: WsMsgData): Promise<void>;
     protected handleWebSocketOnChatMessage(data: WsMsgData, socket: WebSocket.WebSocket): void;
     protected handleWebSocketOnChatTyping(data: WsMsgData): void;

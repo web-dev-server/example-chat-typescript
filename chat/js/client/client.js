@@ -5,10 +5,10 @@ class Chat {
         this._initElements();
         this._initEvents();
         if (this._development) {
-            this._developmentAutoLogin();
+            this._initAutoLoginDevelopment();
         }
         else {
-            this._autoLogin();
+            this._initAutoLogin();
         }
     }
     _initElements() {
@@ -36,7 +36,7 @@ class Chat {
             : rcp;
     }
     _initEvents() {
-        this._loginForm.addEventListener('submit', this._loginSubmitHandler.bind(this));
+        this._loginForm.addEventListener('submit', this._handleClientLoginFormSubmit.bind(this));
         this._logoutBtn.addEventListener('click', (e) => {
             this._socket.Send('logout', {
                 id: this._id,
@@ -45,16 +45,16 @@ class Chat {
             this._socket.Close();
             location.reload();
         });
-        this._messageForm.addEventListener('submit', this._messageFormSubmitHandler.bind(this));
+        this._messageForm.addEventListener('submit', this._handleClientMessageFormSubmit.bind(this));
         this._messageElm.addEventListener('keydown', (e) => {
             // enter + ctrl
             if (e.keyCode == 13 && e.ctrlKey)
-                this._messageFormSubmitHandler(e);
+                this._handleClientMessageFormSubmit(e);
         });
         this._messageElm.addEventListener('keyup', (e) => {
             // enter + ctrl
             if (!(e.keyCode == 13 && e.ctrlKey)) {
-                this._messageFormTypingHandler(String(this._messageElm.value).trim().length > 0, e);
+                this._handleClientMessageFormTyping(String(this._messageElm.value).trim().length > 0, e);
             }
         });
         window.addEventListener('unload', (e) => {
@@ -67,7 +67,18 @@ class Chat {
             return e.returnValue = "Do you realy want to leave chat?";
         });
     }
-    _developmentAutoLogin() {
+    _initAutoLogin() {
+        Ajax.load({
+            url: this._getLoginUrl(),
+            method: 'POST',
+            success: (data, statusCode, xhr) => {
+                if (data.success)
+                    this._initChatRoom(String(data.user), Number(data.id));
+            },
+            type: 'json'
+        });
+    }
+    _initAutoLoginDevelopment() {
         var chrome = navigator.userAgent.indexOf('Chrome') > -1, firefox = navigator.userAgent.indexOf('Firefox') > -1;
         this._loginUserElm.value = chrome
             ? 'james.bond'
@@ -87,18 +98,7 @@ class Chat {
             }));
         }
     }
-    _autoLogin() {
-        Ajax.load({
-            url: this._getLoginUrl(),
-            method: 'POST',
-            success: (data, statusCode, xhr) => {
-                if (data.success)
-                    this._initChatRoom(String(data.user), Number(data.id));
-            },
-            type: 'json'
-        });
-    }
-    _loginSubmitHandler(e) {
+    _handleClientLoginFormSubmit(e) {
         var user = this._loginUserElm.value, pass = this._loginPassElm.value;
         if (user != '' && pass != '') {
             Ajax.load({
@@ -124,24 +124,21 @@ class Chat {
         }
         e.preventDefault();
     }
-    _getLoginUrl() {
-        return this.static.AJAX_LOGIN_ADDRESS
-            .replace('%location.protocol%', location.protocol)
-            .replace('%location.host%', location.host)
-            .replace('%location.pathname%', location.pathname);
-    }
     _initChatRoom(user, id) {
+        this._id = id;
+        this._user = user;
+        this._initChatRoomElements();
+        this._initChatRoomEvents();
+    }
+    _initChatRoomElements() {
         this._loginUserElm.value = '';
         this._loginPassElm.value = '';
         this._loginForm.style.display = 'none';
         this._chatRoom.style.display = 'block';
-        this._id = id;
-        this._user = user;
         this._currentUser.innerHTML = this._user;
         this._scrollToBottom();
-        this._initChatWebSocketComunication();
     }
-    _initChatWebSocketComunication() {
+    _initChatRoomEvents() {
         // connect to server:
         this._socket = WebSocketWrapper.GetInstance(this.static.WEB_SOCKETS_ADDRESS
             .replace('%websocket.protocol%', location.protocol === 'https:' ? 'wss:' : 'ws:')
@@ -156,16 +153,16 @@ class Chat {
         this._socket.Bind('connection', (data) => {
             console.log(data.message);
         });
-        this._socket.Bind('login', this._anyUserLogInHandler.bind(this));
-        this._socket.Bind('logout', this._anyUserLogOutHandler.bind(this));
+        this._socket.Bind('login', this._handleServerUserLogin.bind(this));
+        this._socket.Bind('logout', this._handleServerUserLogout.bind(this));
         this._socket.Bind('message', (data, live = true) => {
             this._addMessage('content ' + (data.id == this._id ? 'current' : 'other'), data.content, data.user, data.recepient);
             if (live)
                 this._audioElm.play();
         });
-        this._socket.Bind('typing', this._typingUsersHandler.bind(this));
+        this._socket.Bind('typing', this._handleServerUserTyping.bind(this));
     }
-    _messageFormSubmitHandler(e) {
+    _handleClientMessageFormSubmit(e) {
         var messageText = String(this._messageElm.value).trim();
         if (messageText != '') {
             this._socket.Send('message', {
@@ -178,7 +175,7 @@ class Chat {
         }
         e.preventDefault();
     }
-    _messageFormTypingHandler(typing, e) {
+    _handleClientMessageFormTyping(typing, e) {
         this._socket.Send('typing', {
             id: this._id,
             user: this._user,
@@ -186,29 +183,57 @@ class Chat {
             typing: typing
         });
     }
-    _getRecepient() {
-        var recepient = '';
-        for (var recepientRadio of this._recepientsElms) {
-            if (recepientRadio.checked) {
-                recepient = recepientRadio.value;
-                break;
-            }
-        }
-        return recepient;
-    }
-    _anyUserLogInHandler(data, live = true) {
+    _handleServerUserLogin(data, live = true) {
         if (live)
-            this._updateOnlineUsersHandler(data);
-        this._addMessage('notify', data.user + ' has joined chat');
+            this._updateOnlineUsers(data);
+        if (!live)
+            this._addMessage('notify', data.user + ' has joined chat');
         if (live)
             this._updateRecepients(data.onlineUsers);
     }
-    _anyUserLogOutHandler(data, live = true) {
+    _handleServerUserLogout(data, live = true) {
         if (live)
-            this._updateOnlineUsersHandler(data);
+            this._updateOnlineUsers(data);
         this._addMessage('notify', data.user + ' has leaved chat');
         if (live)
             this._updateRecepients(data.onlineUsers);
+    }
+    _handleServerUserTyping(data) {
+        var typingUsers = [];
+        for (var userName in data)
+            if (userName !== this._user && data[userName])
+                typingUsers.push(userName);
+        if (typingUsers.length === 0) {
+            this._typingUsersCont.style.display = 'none';
+        }
+        else {
+            this._typingUsers.innerHTML = typingUsers.join(', ');
+            this._typingUsersCont.style.display = 'block';
+        }
+    }
+    _updateOnlineUsers(data) {
+        var onlineUsers = data.onlineUsers, html = '', separator = '';
+        for (var userIdStr in onlineUsers) {
+            html += separator + onlineUsers[userIdStr];
+            separator = ', ';
+        }
+        this._onlineUsers.innerHTML = 'Currently online ('
+            + data.onlineUsersCount + ')： ' + html;
+    }
+    _updateRecepients(onlineUsers) {
+        var html = '', idInt, userName;
+        for (var idStr in onlineUsers) {
+            idInt = parseInt(idStr, 10);
+            if (idInt === this._id)
+                continue;
+            userName = onlineUsers[idStr];
+            html += '<div>'
+                + '<input id="rcp-' + idStr + '" type="radio" name="rcp" value="' + userName + '" />'
+                + '<label for="rcp-' + idStr + '">' + userName + '</label>'
+                + '</div>';
+        }
+        this._recepients.innerHTML = html;
+        this._initElementRecepients();
     }
     _addMessage(msgClass, msgContent, msgAutor = null, msgRecepient = null) {
         var msg = document.createElement('div');
@@ -225,42 +250,21 @@ class Chat {
         this._messages.appendChild(msg);
         this._scrollToBottom();
     }
-    _updateOnlineUsersHandler(data) {
-        var onlineUsers = data.onlineUsers, html = '', separator = '';
-        for (var userIdStr in onlineUsers) {
-            html += separator + onlineUsers[userIdStr];
-            separator = ', ';
+    _getRecepient() {
+        var recepient = '';
+        for (var recepientRadio of this._recepientsElms) {
+            if (recepientRadio.checked) {
+                recepient = recepientRadio.value;
+                break;
+            }
         }
-        this._onlineUsers.innerHTML = 'Currently online ('
-            + data.onlineUsersCount + ')： ' + html;
+        return recepient;
     }
-    _typingUsersHandler(data) {
-        var typingUsers = [];
-        for (var userName in data)
-            if (userName !== this._user && data[userName])
-                typingUsers.push(userName);
-        if (typingUsers.length === 0) {
-            this._typingUsersCont.style.display = 'none';
-        }
-        else {
-            this._typingUsers.innerHTML = typingUsers.join(', ');
-            this._typingUsersCont.style.display = 'block';
-        }
-    }
-    _updateRecepients(onlineUsers) {
-        var html = '', idInt, userName;
-        for (var idStr in onlineUsers) {
-            idInt = parseInt(idStr, 10);
-            if (idInt === this._id)
-                continue;
-            userName = onlineUsers[idStr];
-            html += '<div>'
-                + '<input id="rcp-' + idStr + '" type="radio" name="rcp" value="' + userName + '" />'
-                + '<label for="rcp-' + idStr + '">' + userName + '</label>'
-                + '</div>';
-        }
-        this._recepients.innerHTML = html;
-        this._initElementRecepients();
+    _getLoginUrl() {
+        return this.static.AJAX_LOGIN_ADDRESS
+            .replace('%location.protocol%', location.protocol)
+            .replace('%location.host%', location.host)
+            .replace('%location.pathname%', location.pathname);
     }
     _scrollToBottom() {
         this._messages.scrollTop = this._messages.scrollHeight;

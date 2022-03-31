@@ -1,4 +1,4 @@
 declare interface WsMsgData {
-    id: number;
-    user: string;
+	id: number;
+	user: string;
 }

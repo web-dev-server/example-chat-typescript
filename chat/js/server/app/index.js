@@ -44,7 +44,10 @@ class App {
             if (this.users.size === 0)
                 this.users = yield this.httpHandleLoadUsersCsv();
             var responseBody = this.httpHandleAuthUser(request, sessionNamespace);
-            response.SetBody(JSON.stringify(responseBody)).Send();
+            response
+                .SetHeader("Content-Type", "application/json")
+                .SetBody(JSON.stringify(responseBody))
+                .Send();
         });
     }
     httpHandleLoadUsersCsv() {
@@ -83,7 +86,7 @@ class App {
         }
         else {
             /***************************************************************************/
-            /**                          CSV users comparation                        **/
+            /**						  CSV users comparation						**/
             /***************************************************************************/
             var user = request.GetParam("user", "\-\._@a-zA-Z0-9", ""), pass = request.GetParam("pass", "\-\._@a-zA-Z0-9", "");
             if (!this.users.has(user)) {
@@ -138,13 +141,13 @@ class App {
                     id: id,
                     sessionId: sessionId,
                     user: user,
-                    ws: socket
+                    socket: socket
                 });
             }
             this.sendLastComunication(socket, sessionId, id);
             socket.on('message', (rawData, isBinary) => tslib_1.__awaiter(this, void 0, void 0, function* () {
                 try {
-                    yield this.handleWebSocketOnMessage(rawData, socket, String(sessionId));
+                    yield this.handleWebSocketOnMessage(rawData, socket);
                 }
                 catch (e) {
                     if (e instanceof Error) {
@@ -159,11 +162,11 @@ class App {
             socket.on('error', this.handleWebSocketOnError.bind(this, sessionId));
         });
     }
-    handleWebSocketOnMessage(rawData, socket, sessionId) {
+    handleWebSocketOnMessage(rawData, socket) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             var sendedData = JSON.parse(rawData.toString()), eventName = sendedData.eventName;
             if (eventName == 'login') {
-                this.handleWebSocketOnChatLogin(sendedData.data, sessionId);
+                this.handleWebSocketOnChatLogin(sendedData.data);
             }
             else if (eventName == 'logout') {
                 yield this.handleWebSocketOnChatLogout(sendedData.data);
@@ -176,13 +179,13 @@ class App {
             }
         });
     }
-    handleWebSocketOnChatLogin(data, sessionId) {
-        this.sendToAllExceptMyself('login', {
+    handleWebSocketOnChatLogin(data) {
+        this.sendToAll('login', {
             onlineUsers: this.serializeOnlineUsers().toObject(),
             onlineUsersCount: this.onlineUsers.size,
             id: data.id,
             user: data.user
-        }, sessionId);
+        });
         console.log(`User '${data.user}' joined the chat room.`);
     }
     handleWebSocketOnChatLogout(data) {
@@ -298,9 +301,9 @@ class App {
         if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
-            if (onlineUser.ws != null && onlineUser.ws.readyState === ws_1.default.OPEN) {
+            if (onlineUser.socket != null && onlineUser.socket.readyState === ws_1.default.OPEN) {
                 try {
-                    onlineUser.ws.send(responseStr);
+                    onlineUser.socket.send(responseStr);
                 }
                 catch (e) {
                     this.logger.Error(e);
@@ -323,9 +326,9 @@ class App {
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
             if (onlineUser.sessionId === targetSessionId) {
-                if (onlineUser.ws != null && onlineUser.ws.readyState === ws_1.default.OPEN) {
+                if (onlineUser.socket != null && onlineUser.socket.readyState === ws_1.default.OPEN) {
                     try {
-                        onlineUser.ws.send(responseStr);
+                        onlineUser.socket.send(responseStr);
                     }
                     catch (e) {
                         this.logger.Error(e);
@@ -364,9 +367,9 @@ class App {
             this.data.shift();
         for (var [userId, onlineUser] of this.onlineUsers) {
             if (onlineUser.sessionId !== myselfSessionId) {
-                if (onlineUser.ws && onlineUser.ws.readyState === ws_1.default.OPEN) {
+                if (onlineUser.socket && onlineUser.socket.readyState === ws_1.default.OPEN) {
                     try {
-                        onlineUser.ws.send(responseStr);
+                        onlineUser.socket.send(responseStr);
                     }
                     catch (e) {
                         this.logger.Error(e);

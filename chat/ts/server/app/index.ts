@@ -61,13 +61,16 @@ export default class App implements WebDevServer.IApplication {
 
 		var responseBody = this.httpHandleAuthUser(request, sessionNamespace);
 
-		response.SetBody(JSON.stringify(responseBody)).Send();
+		response
+			.SetHeader("Content-Type", "application/json")
+			.SetBody(JSON.stringify(responseBody))
+			.Send();
 	}
 	protected async httpHandleLoadUsersCsv (): Promise<Map<string, ServerUserRecord>> {
 		var content: Buffer = await fs.readFile(__dirname + this.static.USERS_DATA_RELATIVE_PATH),
 			rows: string[] = content.toString().replace(/\r/g, '').split('\n'),
 			result = new Map<string, ServerUserRecord>();
-        rows.shift(); // remove csv heading line
+		rows.shift(); // remove csv heading line
 		rows.forEach((row, i) => {
 			var data: string[] = row.split(';'),
 				username: string = data[2];
@@ -97,7 +100,7 @@ export default class App implements WebDevServer.IApplication {
 			ajaxResponse.message = 'User is already authenticated.';
 		} else {
 			/***************************************************************************/
-			/**                          CSV users comparation                        **/
+			/**						  CSV users comparation						**/
 			/***************************************************************************/
 			var user = request.GetParam("user", "\-\._@a-zA-Z0-9", ""),
 				pass = request.GetParam("pass", "\-\._@a-zA-Z0-9", "");
@@ -155,13 +158,13 @@ export default class App implements WebDevServer.IApplication {
 				id: id,
 				sessionId: sessionId,
 				user: user,
-				ws: socket
+				socket: socket
 			});
 		}
 		this.sendLastComunication(socket, sessionId, id);
 		socket.on('message', async (rawData: WebSocket.RawData, isBinary: boolean): Promise<void> => {
 			try {
-				await this.handleWebSocketOnMessage(rawData, socket, String(sessionId));
+				await this.handleWebSocketOnMessage(rawData, socket);
 			} catch (e) {
 				if (e instanceof Error) {
 					this.logger.Error(e as Error);
@@ -173,12 +176,12 @@ export default class App implements WebDevServer.IApplication {
 		socket.on('close', this.handleWebSocketOnClose.bind(this, sessionId));
 		socket.on('error', this.handleWebSocketOnError.bind(this, sessionId));
 	}
-	protected async handleWebSocketOnMessage (rawData: WebSocket.RawData, socket: WebSocket.WebSocket, sessionId: string): Promise<void> {
+	protected async handleWebSocketOnMessage (rawData: WebSocket.RawData, socket: WebSocket.WebSocket): Promise<void> {
 		var sendedData = JSON.parse(rawData.toString()) as WsMsg,
 			eventName = sendedData.eventName;
 		
 		if (eventName == 'login') {
-			this.handleWebSocketOnChatLogin(sendedData.data, sessionId);
+			this.handleWebSocketOnChatLogin(sendedData.data);
 
 		} else if (eventName == 'logout') {
 			await this.handleWebSocketOnChatLogout(sendedData.data);
@@ -192,13 +195,13 @@ export default class App implements WebDevServer.IApplication {
 		}
 	}
 
-	protected handleWebSocketOnChatLogin (data: WsMsgData, sessionId: string): void {
-		this.sendToAllExceptMyself('login', <WsMsgServerLoginLogout>{
+	protected handleWebSocketOnChatLogin (data: WsMsgData): void {
+		this.sendToAll('login', <WsMsgServerLoginLogout>{
 			onlineUsers: this.serializeOnlineUsers().toObject(), 
 			onlineUsersCount: this.onlineUsers.size, 
 			id: data.id,
 			user: data.user
-		}, sessionId);
+		});
 		console.log(`User '${data.user}' joined the chat room.`);
 	}
 	protected async handleWebSocketOnChatLogout (data: WsMsgData): Promise<void> {
@@ -314,9 +317,9 @@ export default class App implements WebDevServer.IApplication {
 		if (this.data.length > this.static.LAST_CHAT_MESSAGES_TO_SEND)
 			this.data.shift();
 		for (var [userId, onlineUser] of this.onlineUsers) {
-			if (onlineUser.ws != null && onlineUser.ws.readyState === WebSocket.OPEN) {
+			if (onlineUser.socket != null && onlineUser.socket.readyState === WebSocket.OPEN) {
 				try {
-					onlineUser.ws.send(responseStr);
+					onlineUser.socket.send(responseStr);
 				} catch (e) {
 					this.logger.Error(e as Error);
 				}
@@ -338,9 +341,9 @@ export default class App implements WebDevServer.IApplication {
 			this.data.shift();
 		for (var [userId, onlineUser] of this.onlineUsers) {
 			if (onlineUser.sessionId === targetSessionId) {
-				if (onlineUser.ws != null && onlineUser.ws.readyState === WebSocket.OPEN) {
+				if (onlineUser.socket != null && onlineUser.socket.readyState === WebSocket.OPEN) {
 					try {
-						onlineUser.ws.send(responseStr);
+						onlineUser.socket.send(responseStr);
 					} catch (e) {
 						this.logger.Error(e as Error);
 					}
@@ -377,9 +380,9 @@ export default class App implements WebDevServer.IApplication {
 			this.data.shift();
 			for (var [userId, onlineUser] of this.onlineUsers) {
 			if (onlineUser.sessionId !== myselfSessionId) {
-				if (onlineUser.ws && onlineUser.ws.readyState === WebSocket.OPEN) {
+				if (onlineUser.socket && onlineUser.socket.readyState === WebSocket.OPEN) {
 					try {
-						onlineUser.ws.send(responseStr);
+						onlineUser.socket.send(responseStr);
 					} catch (e) {
 						this.logger.Error(e as Error);
 					}

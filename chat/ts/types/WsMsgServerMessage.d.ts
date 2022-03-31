@@ -1,4 +1,4 @@
 declare interface WsMsgServerMessage extends WsMsgData {
-    content: string;
+	content: string;
 	recepient: string | null;
 }

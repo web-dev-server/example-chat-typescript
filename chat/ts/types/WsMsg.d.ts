@@ -1,4 +1,3 @@
-
 declare interface WsMsg {
 	eventName: string;
 	data: WsMsgData;

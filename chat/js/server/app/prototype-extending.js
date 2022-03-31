@@ -1,48 +1,50 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = {};
-try {
-    Object.defineProperty(String.prototype, 'trim', {
-        enumerable: false,
-        writable: false,
-        configurable: false,
-        value: function (charlist) {
-            var whitespace = '', l = 0, i = 0;
-            var str = String(this);
-            if (!charlist) {
-                // default list
-                whitespace = " \n\r\t\f\x0b\xa0\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u2028\u2029\u3000";
-            }
-            else {
-                // preg_quote custom list
-                charlist += '';
-                whitespace = charlist.replace(/([\[\]\(\)\.\?\/\*\{\}\+\$\^\:])/g, '$1');
-            }
-            l = str.length;
-            for (i = 0; i < l; i++) {
-                if (whitespace.indexOf(str.charAt(i)) === -1) {
-                    str = str.substring(i);
-                    break;
+/*try {
+    Object.defineProperty(
+        String.prototype, 'trim', {
+            enumerable: false,
+            writable: false,
+            configurable: false,
+            value: function (charlist: string) {
+                var whitespace = '',
+                    l = 0,
+                    i = 0;
+                var str = String(this);
+                if (!charlist) {
+                    // default list
+                    whitespace = " \n\r\t\f\x0b\xa0\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u2028\u2029\u3000";
+                } else {
+                    // preg_quote custom list
+                    charlist += '';
+                    whitespace = charlist.replace(/([\[\]\(\)\.\?\/\*\{\}\+\$\^\:])/g, '$1');
                 }
-            }
-            l = str.length;
-            for (i = l - 1; i >= 0; i--) {
-                if (whitespace.indexOf(str.charAt(i)) === -1) {
-                    str = str.substring(0, i + 1);
-                    break;
+                l = str.length;
+                for (i = 0; i < l; i++) {
+                    if (whitespace.indexOf(str.charAt(i)) === -1) {
+                        str = str.substring(i);
+                        break;
+                    }
                 }
+                l = str.length;
+                for (i = l - 1; i >= 0; i--) {
+                    if (whitespace.indexOf(str.charAt(i)) === -1) {
+                        str = str.substring(0, i + 1);
+                        break;
+                    }
+                }
+                return whitespace.indexOf(str.charAt(0)) === -1 ? str : '';
             }
-            return whitespace.indexOf(str.charAt(0)) === -1 ? str : '';
         }
-    });
-}
-catch (e) { }
-if (!Object.typeOf) {
-    Object.typeOf = function (o) {
+    );
+} catch (e) { }*/
+/*if (!Object.typeOf) {
+    Object.typeOf = function (o: any) {
         var r = Object.prototype.toString.apply(o); // "[object Something]"
         return r.substring(8, r.length - 1); // Something
-    };
-}
+    }
+}*/
 if (!Object.prototype.toMap) {
     (function () {
         var toMap = function (map, obj, keys) {
@@ -121,12 +123,14 @@ if (!Map.prototype.toObject)
             return result;
         }
     });
-if (!Number.isNaN)
+/*if (!Number.isNaN)
     Number.isNaN = window.isNaN;
 if (!Number.isInteger)
     Number.isInteger = Number.isInteger || function (value) {
-        return (typeof value === 'number' &&
+        return (
+            typeof value === 'number' &&
             isFinite(value) &&
-            Math.floor(value) === value);
-    };
+            Math.floor(value) === value
+        );
+    };*/ 
 //# sourceMappingURL=prototype-extending.js.map
