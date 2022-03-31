@@ -220,7 +220,8 @@ class Chat {
 	}
 	private _handleServerUserLogin (data: WsMsgServerLoginLogout, live: boolean = true): void {
 		if (live) this._updateOnlineUsers(data);
-		if (!live) this._addMessage('notify', data.user + ' has joined chat');
+		if (!live || (live && data.id !== this._id)) 
+			this._addMessage('notify', data.user + ' has joined chat');
 		if (live) this._updateRecepients(data.onlineUsers);
 	}
 	private _handleServerUserLogout(data: WsMsgServerLoginLogout, live: boolean = true): void {

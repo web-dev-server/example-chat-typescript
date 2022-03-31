@@ -186,7 +186,7 @@ class Chat {
     _handleServerUserLogin(data, live = true) {
         if (live)
             this._updateOnlineUsers(data);
-        if (!live)
+        if (!live || (live && data.id !== this._id))
             this._addMessage('notify', data.user + ' has joined chat');
         if (live)
             this._updateRecepients(data.onlineUsers);
